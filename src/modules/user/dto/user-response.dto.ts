@@ -98,6 +98,14 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   phone_number?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  emailVerified?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
 }
 
 // export class UpdateUserStatusResponseDto {

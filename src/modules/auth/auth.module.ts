@@ -10,7 +10,7 @@ import UserService from '@modules/user/user.service';
 import { OtpService } from '@modules/otp/otp.service';
 import { EmailService } from '@modules/email/email.service';
 import { Otp } from '@modules/otp/entities/otp.entity';
-
+import { TokenService } from '@modules/token/token.service';
 import { Role } from '@modules/role/entities/role.entity';
 import { OtpModule } from '@modules/otp/otp.module';
 import { EmailModule } from '@modules/email/email.module';
@@ -18,7 +18,7 @@ import appConfig from '@config/auth.config';
 
 @Module({
   controllers: [RegistrationController],
-  providers: [AuthenticationService, Repository, UserService, OtpService, EmailService],
+  providers: [AuthenticationService, Repository, UserService, OtpService, TokenService, EmailService],
   imports: [
     TypeOrmModule.forFeature([User, Otp, Role]),
     PassportModule,

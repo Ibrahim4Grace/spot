@@ -1,4 +1,5 @@
 import { UpdateRecordGeneric } from '@shared/helpers/UpdateRecordGeneric';
+import { UserType } from '../../enums/enum';
 
 export interface UserPayload {
   id: string;
@@ -19,7 +20,7 @@ export interface UserInterface {
   is_active: boolean;
 
   attempts_left: number;
-
+  user_type: UserType;
   time_left: number;
 
   created_at: Date;

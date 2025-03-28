@@ -1,11 +1,11 @@
 import { ApiResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiBody, ApiOperation } from '@nestjs/swagger';
 import * as SYS_MSG from '@shared/constants/SystemMessages';
-import { Body, Controller, HttpCode, Post, Req, Request, Patch } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Req, Request, Patch, Headers } from '@nestjs/common';
 import { skipAuth } from '@shared/helpers/skipAuth';
 import AuthenticationService from './auth.service';
 import { OtpDto } from '../otp/dto/otp.dto';
-import GoogleAuthPayload from './interfaces/GoogleAuthPayloadInterface';
+import { GoogleAuthPayload } from './interfaces/GoogleAuthPayloadInterface';
 import { CustomHttpException } from '@shared/helpers/custom-http-filter';
 import {
   ErrorCreateUserResponse,
@@ -44,18 +44,14 @@ export default class RegistrationController {
   }
 
   @skipAuth()
+  @ApiOperation({ summary: 'Verify registration otp' })
+  @ApiBody({ type: AuthResponseDto })
+  @ApiResponse({ status: 200, description: 'successfully verifies otp and logs in user' })
+  @ApiResponse({ status: 401, description: SYS_MSG.UNAUTHORISED_TOKEN })
   @HttpCode(200)
-  @Post('forgot-password')
-  @ApiBody({ type: ForgotPasswordDto })
-  @ApiOperation({ summary: 'Generate forgot password reset token' })
-  @ApiResponse({
-    status: 200,
-    description: 'The forgot password reset token generated successfully',
-    type: ForgotPasswordResponseDto,
-  })
-  @ApiBadRequestResponse({ description: SYS_MSG.USER_ACCOUNT_DOES_NOT_EXIST })
-  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<any> {
-    return this.authService.forgotPassword(forgotPasswordDto);
+  @Post('verify-otp')
+  public async verifyEmail(@Headers('authorization') authorization: string, @Body() verifyOtp: OtpDto) {
+    return this.authService.verifyToken(authorization, verifyOtp);
   }
 
   @skipAuth()
@@ -70,52 +66,30 @@ export default class RegistrationController {
   }
 
   @skipAuth()
-  @ApiOperation({ summary: 'Verify magic link otp' })
-  @ApiBody({ type: AuthResponseDto })
-  @ApiResponse({ status: 200, description: 'successfully verifies otp and logs in user' })
-  @ApiResponse({ status: 401, description: SYS_MSG.UNAUTHORISED_TOKEN })
   @HttpCode(200)
-  @Post('verify-otp')
-  public async verifyEmail(@Body() body: OtpDto): Promise<any> {
-    return this.authService.verifyToken(body);
-  }
-
-  @skipAuth()
-  @Post('google')
-  @ApiOperation({ summary: 'Google Authentication' })
-  @ApiBody({ type: GoogleAuthPayloadDto })
-  @ApiResponse({ status: 200, description: 'Verify Payload sent from google', type: AuthResponseDto })
-  @ApiBadRequestResponse({ description: 'Google authentication failed' })
-  @HttpCode(200)
-  async googleAuth(@Body() body: GoogleAuthPayload) {
-    return this.authService.googleAuth(body);
-  }
-
-  @skipAuth()
-  @ApiBody({
-    description: 'Request authentication token',
-    type: RequestVerificationToken,
+  @Post('forgot-password')
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiOperation({ summary: 'Generate forgot password reset token' })
+  @ApiResponse({
+    status: 200,
+    description: 'The forgot password reset token generated successfully',
+    type: ForgotPasswordResponseDto,
   })
-  @ApiOperation({ summary: 'Request Verification Token' })
-  @ApiResponse({ status: 200, description: 'Verification Token sent to mail', type: GenericAuthResponseDto })
-  @ApiResponse({ status: 400, description: 'Bad request', type: CustomHttpException })
-  @HttpCode(200)
-  @Post('request/token')
-  async requestVerificationToken(@Body() body: { email: string }) {
-    const { email } = body;
-    return this.authService.requestSignInToken({ email });
+  @ApiBadRequestResponse({ description: SYS_MSG.USER_ACCOUNT_DOES_NOT_EXIST })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<any> {
+    return this.authService.forgotPassword(forgotPasswordDto);
   }
 
-  @skipAuth()
-  @Post('magic-link')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Request Signin Token' })
-  @ApiBody({ type: RequestSigninTokenDto })
-  @ApiResponse({ status: 200, description: 'Sign-in token sent to email', type: GenericAuthResponseDto })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  public async signInToken(@Body() body: RequestSigninTokenDto) {
-    return await this.authService.requestSignInToken(body);
-  }
+  // @skipAuth()
+  // @Post('google')
+  // @ApiOperation({ summary: 'Google Authentication' })
+  // @ApiBody({ type: GoogleAuthPayloadDto })
+  // @ApiResponse({ status: 200, description: 'Verify Payload sent from google', type: AuthResponseDto })
+  // @ApiBadRequestResponse({ description: 'Google authentication failed' })
+  // @HttpCode(200)
+  // async googleAuth(@Body() body: GoogleAuthPayload) {
+  //   return this.authService.googleAuth(body);
+  // }
 
   @ApiBearerAuth()
   @ApiBody({ type: ChangePasswordDto })
@@ -131,18 +105,18 @@ export default class RegistrationController {
     return this.authService.changePassword(userId, body.oldPassword, body.newPassword);
   }
 
-  @skipAuth()
-  @Post('magic-link/verify')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Verify Signin Token' })
-  @ApiBody({ type: OtpDto })
-  @ApiResponse({ status: 200, description: 'Sign-in successful', type: OtpDto })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  public async verifySignInToken(@Body() body: OtpDto) {
-    return await this.authService.verifyToken(body);
-  }
+  // @skipAuth()
+  // @Post('magic-link/verify')
+  // @HttpCode(200)
+  // @ApiOperation({ summary: 'Verify Signin Token' })
+  // @ApiBody({ type: OtpDto })
+  // @ApiResponse({ status: 200, description: 'Sign-in successful', type: OtpDto })
+  // @ApiResponse({ status: 401, description: 'Unauthorized' })
+  // public async verifySignInToken(@Body() body: OtpDto) {
+  //   return await this.authService.verifyToken(body);
+  // }
 
-  @skipAuth()
+  // @skipAuth()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Verify Otp and change user password' })
   @ApiBody({ type: UpdatePasswordDto })

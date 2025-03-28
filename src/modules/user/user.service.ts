@@ -42,9 +42,11 @@ export default class UserService {
   async createUser(createUserPayload: CreateNewUserOptions, manager?: EntityManager): Promise<User> {
     const repo = manager ? manager.getRepository(User) : this.userRepository;
     const newUser = new User();
+    console.log('Raw createUserPayload:', createUserPayload);
     Object.assign(newUser, createUserPayload);
-    // newUser.is_active = true;
-    return await repo.save<User>(newUser);
+    const savedUser = await repo.save<User>(newUser);
+    console.log('Saved user:', savedUser);
+    return savedUser;
   }
 
   async updateUserRecord(userUpdateOptions: UpdateUserRecordOption) {
@@ -99,7 +101,6 @@ export default class UserService {
   private async getUserById(identifier: string) {
     const user: UserResponseDTO = await this.userRepository.findOne({
       where: { id: identifier },
-      relations: ['profile'],
     });
     return user;
   }
@@ -107,7 +108,7 @@ export default class UserService {
   async updateUser(
     userId: string,
     updateUserDto: UpdateUserDto,
-    currentUser: UserPayload,
+    currentUser?: UserPayload,
   ): Promise<UpdateUserResponseDTO> {
     if (!userId) {
       throw new BadRequestException({
@@ -130,7 +131,7 @@ export default class UserService {
       });
     }
     // TODO: CHECK IF USER IS AN ADMIN
-    if (currentUser.id !== userId) {
+    if (currentUser && currentUser.id !== userId) {
       throw new ForbiddenException({
         error: 'Forbidden',
         message: 'You are not authorized to update this user',
@@ -323,7 +324,7 @@ export default class UserService {
     const stream = new Readable();
     const jsonData = { user: {} };
     const omitColumns: Array<keyof User> = ['password'];
-    const relations = ['profile', 'organisationMembers', 'borrower', 'blogs', 'notifications', 'testimonials'];
+    const relations = ['borrower', 'notifications'];
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations,

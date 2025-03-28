@@ -15,44 +15,43 @@ import { getFile, createFile, deleteFile } from '@shared/helpers/fileHelpers';
 export class EmailService {
   constructor(private readonly mailerService: QueueService) {}
 
-  async sendUserConfirmationMail(email: string, name: string, url: string, token: string) {
-    const link = `${url}?token=${token}`;
+  async sendUserEmailConfirmationOtp(email: string, name: string, otp: string) {
     const mailPayload: MailInterface = {
       to: email,
       context: {
-        link,
+        otp,
+        name,
+      },
+    };
+
+    // await this.mailerService.sendMail({ variant: 'register-otp', mail: mailPayload });
+    const { jobId } = await this.mailerService.sendMail({ variant: 'register-otp', mail: mailPayload });
+    console.log(`Queued OTP email job with ID: ${jobId} for ${email}`);
+  }
+
+  async sendForgotPasswordMail(email: string, name: string, otp: string) {
+    const mailPayload: MailInterface = {
+      to: email,
+      context: {
+        name,
+        otp,
+        email,
+      },
+    };
+
+    await this.mailerService.sendMail({ variant: 'reset-password', mail: mailPayload });
+  }
+
+  async sendUserConfirmationMail(email: string, name: string, token: string) {
+    const mailPayload: MailInterface = {
+      to: email,
+      context: {
         name,
         email,
       },
     };
 
     await this.mailerService.sendMail({ variant: 'welcome', mail: mailPayload });
-  }
-
-  async sendUserEmailConfirmationOtp(email: string, otp: string) {
-    const mailPayload: MailInterface = {
-      to: email,
-      context: {
-        otp,
-        email,
-      },
-    };
-
-    await this.mailerService.sendMail({ variant: 'register-otp', mail: mailPayload });
-  }
-
-  async sendForgotPasswordMail(email: string, name: string, url: string, token: string) {
-    const link = `${url}?token=${token}`;
-    const mailPayload: MailInterface = {
-      to: email,
-      context: {
-        name,
-        link,
-        email,
-      },
-    };
-
-    await this.mailerService.sendMail({ variant: 'reset-password', mail: mailPayload });
   }
 
   async sendLoginOtp(email: string, token: string) {
@@ -65,21 +64,6 @@ export class EmailService {
     };
 
     await this.mailerService.sendMail({ variant: 'login-otp', mail: mailPayload });
-  }
-
-  async sendNotificationMail(email: string, notificationMail: IMessageInterface) {
-    const { recipient_name, message, support_email } = notificationMail;
-    const mailPayload: MailInterface = {
-      to: email,
-      context: {
-        email,
-        recipient_name,
-        message,
-        support_email,
-      },
-    };
-
-    await this.mailerService.sendMail({ variant: 'in-app-notification', mail: mailPayload });
   }
 
   async createTemplate(templateInfo: createTemplateDto) {

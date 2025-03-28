@@ -1,17 +1,17 @@
-import { HttpStatus, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as SYS_MSG from '@shared/constants/SystemMessages';
-import { JwtService } from '@nestjs/jwt';
+
 import UserService from '@modules/user/user.service';
 import { OtpService } from '@modules/otp/otp.service';
 import { EmailService } from '@modules/email/email.service';
 import { CustomHttpException } from '@shared/helpers/custom-http-filter';
-import GoogleAuthPayload from './interfaces/GoogleAuthPayloadInterface';
+import { GoogleAuthPayload, CreateUserResponse } from './interfaces/GoogleAuthPayloadInterface';
 import { TokenPayload } from 'google-auth-library';
 import { OtpDto } from '@modules/otp/dto/otp.dto';
 import { DataSource, EntityManager } from 'typeorm';
-import { BorrowerService } from '@modules/borrower/borrower.service';
-import { CreateBorrowerDTO } from '@modules/borrower/dto/create-borrower.dto';
+import { TokenService } from '../token/token.service';
+import { Logger } from '@nestjs/common';
 import {
   RequestSigninTokenDto,
   LoginResponseDto,
@@ -29,15 +29,17 @@ import {
 
 @Injectable()
 export default class AuthenticationService {
+  private readonly logger = new Logger(AuthenticationService.name);
   constructor(
-    private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly otpService: OtpService,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource,
+    private readonly tokenService: TokenService,
   ) {}
 
-  async createNewUser(createUserDto: CreateUserDTO) {
+  async createNewUser(createUserDto: CreateUserDTO): Promise<CreateUserResponse> {
+    console.log('Incoming createUserDto:', createUserDto);
     const result = await this.dataSource.transaction(async (manager: EntityManager) => {
       const userExists = await this.userService.getUserRecord({
         identifier: createUserDto.email,
@@ -48,6 +50,14 @@ export default class AuthenticationService {
       const user = await this.userService.createUser(createUserDto, manager);
       if (!user) throw new CustomHttpException(SYS_MSG.FAILED_TO_CREATE_USER, HttpStatus.BAD_REQUEST);
 
+      const otpResult = await this.otpService.createOtp(user.id, manager);
+      if (!otpResult) throw new CustomHttpException('Failed to generate OTP', HttpStatus.INTERNAL_SERVER_ERROR);
+
+      const preliminaryToken = this.tokenService.createEmailVerificationToken({
+        userId: user.id,
+        role: user.user_type,
+      });
+
       const responsePayload = {
         user: {
           id: user.id,
@@ -56,44 +66,84 @@ export default class AuthenticationService {
           email: user.email,
           user_type: user.user_type,
         },
+        token: preliminaryToken,
       };
       return {
-        message: SYS_MSG.USER_CREATED_SUCCESSFULLY,
+        message: SYS_MSG.VERIFY_OTP_SENT,
         data: responsePayload,
+        otp: otpResult.plainOtp,
       };
     });
 
     try {
-      // send welcome mail
-      await this.emailService.sendUserConfirmationMail(
+      await this.emailService.sendUserEmailConfirmationOtp(
         result.data.user.email,
         result.data.user.first_name,
-        result.data.user.last_name,
-        `${process.env.FRONTEND_URL}/confirm-email`,
+        result.otp,
       );
+      this.logger.log(`Successfully sent OTP email to ${result.data.user.email} with OTP: ${result.otp}`);
     } catch (emailError) {
-      console.error('Error sending confirmation email:', emailError);
+      this.logger.error('Error sending confirmation email:', emailError);
     }
 
-    return result;
+    return {
+      message: result.message,
+      data: result.data,
+    };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string } | null> {
+  async verifyToken(authorization: string, verifyOtp: { otp: string }) {
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+      throw new CustomHttpException('Invalid or missing Authorization header', HttpStatus.UNAUTHORIZED);
+    }
+    const token = authorization.split(' ')[1];
+    if (!token) {
+      throw new CustomHttpException('Token not provided in Authorization header', HttpStatus.UNAUTHORIZED);
+    }
+
+    const decodedToken = await this.tokenService.verifyEmailToken(token);
+    const user = await this.userService.getUserRecord({ identifier: decodedToken.userId, identifierType: 'id' });
+    if (!user) throw new CustomHttpException(SYS_MSG.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+    const isValidOtp = await this.otpService.verifyOtp(user.id, verifyOtp.otp);
+    if (!isValidOtp) throw new CustomHttpException(SYS_MSG.INVALID_OTP, HttpStatus.UNAUTHORIZED);
+
+    await this.userService.updateUser(user.id, { emailVerified: true, is_active: true });
+    await this.otpService.deleteOtp(user.id);
+
+    const responsePayload = {
+      id: user.id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      user_type: user.user_type,
+    };
+
+    return {
+      message: SYS_MSG.EMAIL_VERIFIED_SUCCESSFULLY,
+      data: responsePayload,
+    };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string; token: string }> {
     const user = await this.userService.getUserRecord({ identifier: dto.email, identifierType: 'email' });
     if (!user) {
       throw new CustomHttpException(SYS_MSG.USER_ACCOUNT_DOES_NOT_EXIST, HttpStatus.BAD_REQUEST);
     }
 
-    const token = (await this.otpService.createOtp(user.id)).token;
-    await this.emailService.sendForgotPasswordMail(
-      user.email,
-      user.first_name,
-      `${process.env.FRONTEND_URL}/reset-password`,
-      token,
-    );
+    const otpResult = await this.otpService.createOtp(user.id);
+    if (!otpResult) throw new CustomHttpException('Failed to generate OTP', HttpStatus.INTERNAL_SERVER_ERROR);
 
+    const preliminaryToken = this.tokenService.createEmailVerificationToken({
+      userId: user.id,
+      role: user.user_type,
+    });
+
+    await this.emailService.sendForgotPasswordMail(user.email, otpResult.plainOtp, user.first_name);
+    this.logger.log(`Successfully sent forgot password OTP to ${user.email} with OTP: ${otpResult.plainOtp}`);
     return {
       message: SYS_MSG.EMAIL_SENT,
+      token: preliminaryToken,
     };
   }
 
@@ -134,24 +184,30 @@ export default class AuthenticationService {
     };
   }
 
-  async loginUser(loginDto: LoginDto): Promise<LoginResponseDto | { status_code: number; message: string }> {
+  async loginUser(loginDto: LoginDto): Promise<LoginResponseDto> {
     const { email, password } = loginDto;
-
+    console.log('Login request password:', loginDto.password);
     const user = await this.userService.getUserRecord({
       identifier: email,
       identifierType: 'email',
     });
-
+    console.log('User found:', user);
     if (!user) {
       throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-
+    console.log('Login request password:', password);
+    const isMatch = await bcrypt.compare(loginDto.password, user.password);
+    console.log('Password match:', isMatch);
     if (!isMatch) {
       throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
     }
-    const access_token = this.jwtService.sign({ id: user.id, sub: user.id });
+
+    const access_token = this.tokenService.createAuthToken({
+      userId: user.id,
+      role: user.user_type,
+    });
+
     const responsePayload = {
       access_token,
       data: {
@@ -160,7 +216,7 @@ export default class AuthenticationService {
           first_name: user.first_name,
           last_name: user.last_name,
           email: user.email,
-          // is_superadmin: isSuperAdmin,
+          role: user.user_type,
         },
       },
     };
@@ -168,149 +224,95 @@ export default class AuthenticationService {
     return { message: SYS_MSG.LOGIN_SUCCESSFUL, ...responsePayload };
   }
 
-  async googleAuth(googleAuthPayload: GoogleAuthPayload) {
-    const idToken = googleAuthPayload.id_token;
+  // async googleAuth(googleAuthPayload: GoogleAuthPayload) {
+  //   const idToken = googleAuthPayload.id_token;
 
-    if (!idToken) {
-      throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
-    }
+  //   if (!idToken) {
+  //     throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+  //   }
 
-    const request = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=${idToken}`);
+  //   const request = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=${idToken}`);
 
-    if (request.status === 400) {
-      throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
-    }
-    if (request.status === 500) {
-      throw new CustomHttpException(SYS_MSG.SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-    const verifyTokenResponse: TokenPayload = await request.json();
+  //   if (request.status === 400) {
+  //     throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+  //   }
+  //   if (request.status === 500) {
+  //     throw new CustomHttpException(SYS_MSG.SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+  //   }
+  //   const verifyTokenResponse: TokenPayload = await request.json();
 
-    const userEmail = verifyTokenResponse.email;
-    const userExists = await this.userService.getUserRecord({ identifier: userEmail, identifierType: 'email' });
+  //   const userEmail = verifyTokenResponse.email;
+  //   const userExists = await this.userService.getUserRecord({ identifier: userEmail, identifierType: 'email' });
 
-    if (!userExists) {
-      const userCreationPayload = {
-        email: userEmail,
-        first_name: verifyTokenResponse.given_name || '',
-        last_name: verifyTokenResponse?.family_name || '',
-        password: '',
-        profile_pic_url: verifyTokenResponse?.picture || '',
-      };
-      return await this.createUserGoogle(userCreationPayload);
-    }
+  //   if (!userExists) {
+  //     const userCreationPayload = {
+  //       email: userEmail,
+  //       first_name: verifyTokenResponse.given_name || '',
+  //       last_name: verifyTokenResponse?.family_name || '',
+  //       password: '',
+  //       profile_pic_url: verifyTokenResponse?.picture || '',
+  //     };
+  //     return await this.createUserGoogle(userCreationPayload);
+  //   }
 
-    // const userOranisations = await this.organisationService.getAllUserOrganisations(userExists.id, 1, 10);
-    // const isSuperAdmin = userOranisations.map((instance) => instance.user_role).includes('super-admin');
-    const accessToken = this.jwtService.sign({
-      sub: userExists.id,
-      id: userExists.id,
-      email: userExists.email,
-      first_name: userExists.first_name,
-      last_name: userExists.last_name,
-    });
+  //   // const userOranisations = await this.organisationService.getAllUserOrganisations(userExists.id, 1, 10);
+  //   // const isSuperAdmin = userOranisations.map((instance) => instance.user_role).includes('super-admin');
+  //   const accessToken = this.tokenService.createAuthToken({
+  //     // sub: userExists.id,
+  //     // id: userExists.id,
+  //     // email: userExists.email,
+  //     // first_name: userExists.first_name,
+  //     last_name: userExists.last_name,
+  //   });
 
-    return {
-      message: SYS_MSG.LOGIN_SUCCESSFUL,
-      access_token: accessToken,
-      data: {
-        user: {
-          id: userExists.id,
-          email: userExists.email,
-          first_name: userExists.first_name,
-          last_name: userExists.last_name,
-          // is_superadmin: isSuperAdmin,
-        },
-      },
-    };
-  }
+  //   return {
+  //     message: SYS_MSG.LOGIN_SUCCESSFUL,
+  //     access_token: accessToken,
+  //     data: {
+  //       user: {
+  //         id: userExists.id,
+  //         email: userExists.email,
+  //         first_name: userExists.first_name,
+  //         last_name: userExists.last_name,
+  //         // is_superadmin: isSuperAdmin,
+  //       },
+  //     },
+  //   };
+  // }
 
-  public async createUserGoogle(userPayload: CreateUserDTO) {
-    const newUser = await this.userService.createUser(userPayload);
-    const newOrganisationPaload = {
-      name: `${newUser.first_name}'s Organisation`,
-      description: '',
-      email: newUser.email,
-      industry: '',
-      type: '',
-      country: '',
-      address: '',
-      state: '',
-    };
+  // public async createUserGoogle(userPayload: CreateUserDTO) {
+  //   const newUser = await this.userService.createUser(userPayload);
+  //   const newOrganisationPaload = {
+  //     name: `${newUser.first_name}'s Organisation`,
+  //     description: '',
+  //     email: newUser.email,
+  //     industry: '',
+  //     type: '',
+  //     country: '',
+  //     address: '',
+  //     state: '',
+  //   };
 
-    const accessToken = this.jwtService.sign({
-      sub: newUser.id,
-      id: newUser.id,
-      email: userPayload.email,
-      first_name: userPayload.first_name,
-      last_name: userPayload.last_name,
-    });
-    return {
-      status_code: HttpStatus.CREATED,
-      message: SYS_MSG.USER_CREATED,
-      access_token: accessToken,
-      data: {
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          first_name: newUser.first_name,
-          last_name: newUser.last_name,
-          // is_superadmin: isSuperAdmin,
-        },
-      },
-    };
-  }
-
-  async requestSignInToken(requestSignInTokenDto: RequestSigninTokenDto) {
-    const { email } = requestSignInTokenDto;
-
-    const user = await this.userService.getUserRecord({ identifier: email, identifierType: 'email' });
-
-    if (!user) {
-      throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.BAD_REQUEST);
-    }
-
-    const otpExist = await this.otpService.findOtp(user.id);
-
-    if (otpExist) {
-      await this.otpService.deleteOtp(user.id);
-    }
-
-    const otp = await this.otpService.createOtp(user.id);
-
-    await this.emailService.sendLoginOtp(user.email, otp.token);
-
-    return {
-      message: SYS_MSG.SIGN_IN_OTP_SENT,
-    };
-  }
-
-  async verifyToken(verifyOtp: OtpDto) {
-    const { token, email } = verifyOtp;
-
-    const user = await this.userService.getUserRecord({ identifier: email, identifierType: 'email' });
-    const otp = await this.otpService.verifyOtp(user.id, token);
-
-    if (!user || !otp) {
-      throw new CustomHttpException(SYS_MSG.UNAUTHORISED_TOKEN, HttpStatus.UNAUTHORIZED);
-    }
-
-    const accessToken = this.jwtService.sign({
-      email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      sub: user.id,
-      id: user.id,
-    });
-
-    const { password, ...data } = user;
-    const responsePayload = {
-      ...data,
-    };
-
-    return {
-      message: SYS_MSG.LOGIN_SUCCESSFUL,
-      access_token: accessToken,
-      data: responsePayload,
-    };
-  }
+  //   const accessToken = this.jwtService.sign({
+  //     sub: newUser.id,
+  //     id: newUser.id,
+  //     email: userPayload.email,
+  //     first_name: userPayload.first_name,
+  //     last_name: userPayload.last_name,
+  //   });
+  //   return {
+  //     status_code: HttpStatus.CREATED,
+  //     message: SYS_MSG.USER_CREATED,
+  //     access_token: accessToken,
+  //     data: {
+  //       user: {
+  //         id: newUser.id,
+  //         email: newUser.email,
+  //         first_name: newUser.first_name,
+  //         last_name: newUser.last_name,
+  //         // is_superadmin: isSuperAdmin,
+  //       },
+  //     },
+  //   };
+  // }
 }

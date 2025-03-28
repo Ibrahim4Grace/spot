@@ -18,5 +18,5 @@ export default class QueueService {
 
 export interface MailSender {
   mail: MailInterface;
-  variant: 'welcome' | 'reset-password' | 'login-otp' | 'register-otp' | 'in-app-notification';
+  variant: 'welcome' | 'forgot-password' | 'reset-password' | 'login-otp' | 'register-otp';
 }

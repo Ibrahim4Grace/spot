@@ -3,8 +3,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { Otp } from './entities/otp.entity';
 import { User } from '@modules/user/entities/user.entity';
-import { generateSixDigitToken } from '@utils/generate-token';
+import * as otpGenerator from 'otp-generator';
+import * as bcrypt from 'bcryptjs';
 import { CustomHttpException } from '@shared/helpers/custom-http-filter';
+
+export const generateOTP = async () => {
+  const otp = otpGenerator.generate(6, {
+    lowerCaseAlphabets: false,
+    upperCaseAlphabets: false,
+    specialChars: false,
+  });
+  const hashedOTP = await bcrypt.hash(otp, 10);
+  return { otp, hashedOTP };
+};
+
+interface CreateOtpResult {
+  otpEntity: Otp;
+  plainOtp: string;
+}
 
 @Injectable()
 export class OtpService {
@@ -15,7 +31,7 @@ export class OtpService {
     private userRepository: Repository<User>,
   ) {}
 
-  async createOtp(userId: string, manager?: EntityManager): Promise<Otp | null> {
+  async createOtp(userId: string, manager?: EntityManager): Promise<CreateOtpResult | null> {
     try {
       const repo = manager ? manager.getRepository(User) : this.userRepository;
       const otpRepo = manager ? manager.getRepository(Otp) : this.otpRepository;
@@ -23,29 +39,33 @@ export class OtpService {
 
       if (!user) throw new NotFoundException('User not found');
 
-      const token = generateSixDigitToken();
-      const expiry = new Date(Date.now() + 5 * 60 * 1000);
+      const { otp, hashedOTP } = await generateOTP();
+      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
 
-      const otp = otpRepo.create({ token, expiry, user, user_id: userId });
-      await otpRepo.save(otp);
+      const otpEntity = otpRepo.create({ token: hashedOTP, expiry, user, user_id: userId });
+      await otpRepo.save(otpEntity);
 
-      return otp;
+      // Return plain OTP for email sending
+      return { otpEntity, plainOtp: otp };
     } catch (error) {
       console.log('OtpServiceError ~ createOtpError ~', error);
       return null;
     }
   }
 
-  async verifyOtp(userId: string, token: string): Promise<boolean> {
+  async verifyOtp(userId: string, otp: string): Promise<boolean> {
     try {
-      const otp = await this.otpRepository.findOne({ where: { token, user_id: userId } });
+      const otpRecord = await this.otpRepository.findOne({ where: { user_id: userId } });
 
-      if (!otp) {
-        throw new NotFoundException('Invalid OTP');
+      if (!otpRecord) throw new NotFoundException('Invalid OTP');
+
+      if (otpRecord.expiry < new Date()) {
+        throw new NotAcceptableException('OTP expired');
       }
 
-      if (otp.expiry < new Date()) {
-        throw new NotAcceptableException('OTP expired');
+      const isMatch = await bcrypt.compare(otp, otpRecord.token);
+      if (!isMatch) {
+        throw new NotFoundException('Invalid OTP');
       }
 
       return true;
@@ -57,10 +77,7 @@ export class OtpService {
 
   async findOtp(userId: string): Promise<Otp | null> {
     const otp = await this.otpRepository.findOne({ where: { user_id: userId } });
-
-    if (!otp) {
-      throw new NotFoundException('OTP is invalid');
-    }
+    if (!otp) throw new NotFoundException('OTP is invalid');
     return otp;
   }
 

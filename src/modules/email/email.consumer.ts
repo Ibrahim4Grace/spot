@@ -9,6 +9,24 @@ export default class EmailQueueConsumer {
   private logger = new Logger(EmailQueueConsumer.name);
   constructor(private readonly mailerService: MailerService) {}
 
+  @Process('register-otp')
+  async sendTokenEmailJob(job: Job<MailInterface>) {
+    try {
+      const {
+        data: { mail },
+      } = job;
+      this.logger.log(`Processing register-otp job for ${mail.to} with context: ${JSON.stringify(mail.context)}`);
+      await this.mailerService.sendMail({
+        ...mail,
+        subject: 'Welcome to My App! Confirm your Email',
+        template: 'register-otp',
+      });
+      this.logger.log(`Register OTP email sent successfully to ${mail.to}`);
+    } catch (sendTokenEmailJobError) {
+      this.logger.error(`EmailQueueConsumer ~ sendTokenEmailJobError:   ${sendTokenEmailJobError}`);
+    }
+  }
+
   @Process('welcome')
   async sendWelcomeEmailJob(job: Job<MailInterface>) {
     try {
@@ -26,8 +44,8 @@ export default class EmailQueueConsumer {
     }
   }
 
-  @Process('waitlist')
-  async sendWaitlistEmailJob(job: Job<MailInterface>) {
+  @Process('forgot-password')
+  async sendOtpEmailJob(job: Job<MailInterface>) {
     try {
       const {
         data: { mail },
@@ -35,12 +53,12 @@ export default class EmailQueueConsumer {
 
       await this.mailerService.sendMail({
         ...mail,
-        subject: 'Waitlist Confirmation',
-        template: 'waitlist',
+        subject: 'Your 6-digit Verification Code',
+        template: 'otp-Template',
       });
-      this.logger.log(`Waitlist email sent successfully to ${mail.to}`);
-    } catch (sendWaitlistEmailJobError) {
-      this.logger.error(`EmailQueueConsumer ~ sendWaitlistEmailJobError: ${sendWaitlistEmailJobError}`);
+      this.logger.log(`Otp verification email sent successfully to ${mail.to}`);
+    } catch (sendOtpEmailJobError) {
+      this.logger.error(`EmailQueueConsumer ~ sendOtpEmailJobError: ${sendOtpEmailJobError}`);
     }
   }
 
@@ -62,40 +80,6 @@ export default class EmailQueueConsumer {
     }
   }
 
-  @Process('newsletter')
-  async sendNewsletterEmailJob(job: Job<MailInterface>) {
-    try {
-      const {
-        data: { mail },
-      } = job;
-      await this.mailerService.sendMail({
-        ...mail,
-        subject: 'Monthly Newsletter',
-        template: 'newsletter',
-      });
-      this.logger.log(`Newsletter email sent successfully to ${mail.to}`);
-    } catch (sendNewsletterEmailJobError) {
-      this.logger.error(`EmailQueueConsumer ~ sendNewsletterEmailJobError:   ${sendNewsletterEmailJobError}`);
-    }
-  }
-
-  @Process('register-otp')
-  async sendTokenEmailJob(job: Job<MailInterface>) {
-    try {
-      const {
-        data: { mail },
-      } = job;
-      await this.mailerService.sendMail({
-        ...mail,
-        subject: 'Welcome to My App! Confirm your Email',
-        template: 'register-otp',
-      });
-      this.logger.log(`Register OTP email sent successfully to ${mail.to}`);
-    } catch (sendTokenEmailJobError) {
-      this.logger.error(`EmailQueueConsumer ~ sendTokenEmailJobError:   ${sendTokenEmailJobError}`);
-    }
-  }
-
   @Process('login-otp')
   async sendLoginOtpEmailJob(job: Job<MailInterface>) {
     try {
@@ -108,24 +92,6 @@ export default class EmailQueueConsumer {
         template: 'login-otp',
       });
       this.logger.log(`Login OTP email sent successfully to ${mail.to}`);
-    } catch (sendLoginOtpEmailJobError) {
-      this.logger.error(`EmailQueueConsumer ~ sendLoginOtpEmailJobError:   ${sendLoginOtpEmailJobError}`);
-    }
-  }
-
-  @Process('in-app-notification')
-  async sendNotificationMail(job: Job<MailInterface>) {
-    try {
-      const {
-        data: { mail },
-      } = job;
-
-      await this.mailerService.sendMail({
-        ...mail,
-        subject: 'In-App, Notification',
-        template: 'login-otp',
-      });
-      this.logger.log(`Notification email sent successfully to ${mail.to}`);
     } catch (sendLoginOtpEmailJobError) {
       this.logger.error(`EmailQueueConsumer ~ sendLoginOtpEmailJobError:   ${sendLoginOtpEmailJobError}`);
     }
