@@ -19,7 +19,7 @@ import { OtpModule } from '@modules/otp/otp.module';
 import { EmailModule } from '@modules/email/email.module';
 import { UserModule } from '@modules/user/user.module';
 import { RoleModule } from '@modules/role/role.module';
-import { TokenModule } from './modules/token/token.module';
+import { TokenModule } from '@modules/token/token.module';
 import { parse } from 'url';
 
 @Module({

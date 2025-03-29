@@ -67,7 +67,7 @@ export default class RegistrationController {
 
   @skipAuth()
   @HttpCode(200)
-  @Post('forgot-password')
+  @Post('password/forgot')
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOperation({ summary: 'Generate forgot password reset token' })
   @ApiResponse({
@@ -78,6 +78,33 @@ export default class RegistrationController {
   @ApiBadRequestResponse({ description: SYS_MSG.USER_ACCOUNT_DOES_NOT_EXIST })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<any> {
     return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @skipAuth()
+  @ApiOperation({ summary: 'Verify reset password otp' })
+  @ApiBody({ type: AuthResponseDto })
+  @ApiResponse({ status: 200, description: 'successfully verifies otp kindly reset your password' })
+  @ApiResponse({ status: 401, description: SYS_MSG.UNAUTHORISED_TOKEN })
+  @HttpCode(200)
+  @Post('password/verify-otp')
+  public async verifyResetPasswordEmail(@Headers('authorization') authorization: string, @Body() verifyOtp: OtpDto) {
+    return this.authService.verifyForgetPasswordOtp(authorization, verifyOtp);
+  }
+
+  @skipAuth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change user password' })
+  @ApiBody({ type: UpdatePasswordDto })
+  @ApiResponse({ status: 200, description: 'Password changed successfully', type: UpdateUserPasswordResponseDTO })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @Patch('password/reset')
+  @HttpCode(200)
+  public async resetPassword(
+    @Headers('authorization') authorization: string,
+    @Body() updatePasswordDto: UpdatePasswordDto,
+  ) {
+    return this.authService.updateForgotPassword(authorization, updatePasswordDto);
   }
 
   // @skipAuth()
@@ -91,41 +118,17 @@ export default class RegistrationController {
   //   return this.authService.googleAuth(body);
   // }
 
-  @ApiBearerAuth()
-  @ApiBody({ type: ChangePasswordDto })
-  @ApiOperation({ summary: 'Change user password' })
-  @ApiResponse({ status: 200, description: 'Password changed successfully' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @HttpCode(200)
-  @Post('change-password')
-  public async changePassword(@Body() body: ChangePasswordDto, @Req() request: Request): Promise<any> {
-    const user = request['user'];
-    const userId = user.id;
-    return this.authService.changePassword(userId, body.oldPassword, body.newPassword);
-  }
-
-  // @skipAuth()
-  // @Post('magic-link/verify')
-  // @HttpCode(200)
-  // @ApiOperation({ summary: 'Verify Signin Token' })
-  // @ApiBody({ type: OtpDto })
-  // @ApiResponse({ status: 200, description: 'Sign-in successful', type: OtpDto })
+  // @ApiBearerAuth()
+  // @ApiBody({ type: ChangePasswordDto })
+  // @ApiOperation({ summary: 'Change user password' })
+  // @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  // @ApiResponse({ status: 400, description: 'Bad request' })
   // @ApiResponse({ status: 401, description: 'Unauthorized' })
-  // public async verifySignInToken(@Body() body: OtpDto) {
-  //   return await this.authService.verifyToken(body);
+  // @HttpCode(200)
+  // @Post('change-password')
+  // public async changePassword(@Body() body: ChangePasswordDto, @Req() request: Request): Promise<any> {
+  //   const user = request['user'];
+  //   const userId = user.id;
+  //   return this.authService.changePassword(userId, body.oldPassword, body.newPassword);
   // }
-
-  // @skipAuth()
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Verify Otp and change user password' })
-  @ApiBody({ type: UpdatePasswordDto })
-  @ApiResponse({ status: 200, description: 'Password changed successfully', type: UpdateUserPasswordResponseDTO })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @Patch('password-reset')
-  @HttpCode(200)
-  public async resetPassword(@Body() updatePasswordDto: UpdatePasswordDto) {
-    return this.authService.updateForgotPassword(updatePasswordDto);
-  }
 }

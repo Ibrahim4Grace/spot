@@ -18,7 +18,7 @@ export default class EmailQueueConsumer {
       this.logger.log(`Processing register-otp job for ${mail.to} with context: ${JSON.stringify(mail.context)}`);
       await this.mailerService.sendMail({
         ...mail,
-        subject: 'Welcome to My App! Confirm your Email',
+        subject: 'Welcome to spot! Confirm your Email',
         template: 'register-otp',
       });
       this.logger.log(`Register OTP email sent successfully to ${mail.to}`);
@@ -35,8 +35,8 @@ export default class EmailQueueConsumer {
       } = job;
       await this.mailerService.sendMail({
         ...mail,
-        subject: 'Welcome to My App! Confirm your Email',
-        template: 'Welcome-Template',
+        subject: 'Welcome to The Spot!',
+        template: 'email-complete',
       });
       this.logger.log(`Welcome email sent successfully to ${mail.to}`);
     } catch (sendWelcomeEmailJobError) {
@@ -44,56 +44,41 @@ export default class EmailQueueConsumer {
     }
   }
 
-  @Process('forgot-password')
-  async sendOtpEmailJob(job: Job<MailInterface>) {
+  @Process('forgot-otp')
+  async sendForgotPasswordEmailJob(job: Job<MailInterface>) {
     try {
       const {
         data: { mail },
       } = job;
-
+      this.logger.log(`Processing forgot-password job for ${mail.to} with context: ${JSON.stringify(mail.context)}`);
       await this.mailerService.sendMail({
         ...mail,
-        subject: 'Your 6-digit Verification Code',
-        template: 'otp-Template',
+        subject: 'Reset Your Password',
+        template: 'forgot-password',
       });
-      this.logger.log(`Otp verification email sent successfully to ${mail.to}`);
-    } catch (sendOtpEmailJobError) {
-      this.logger.error(`EmailQueueConsumer ~ sendOtpEmailJobError: ${sendOtpEmailJobError}`);
+      this.logger.log(`Forgot password email sent successfully to ${mail.to}`);
+    } catch (sendForgotPasswordEmailJobError) {
+      this.logger.error(`EmailQueueConsumer ~ sendForgotPasswordEmailJobError:   ${sendForgotPasswordEmailJobError}`);
     }
   }
 
-  @Process('reset-password')
-  async sendResetPasswordEmailJob(job: Job<MailInterface>) {
+  @Process('reset-successful')
+  async sendPasswordChangedEmailJob(job: Job<MailInterface>) {
     try {
       const {
         data: { mail },
       } = job;
-
+      this.logger.log(
+        `Processing password-reset-complete job for ${mail.to} with context: ${JSON.stringify(mail.context)}`,
+      );
       await this.mailerService.sendMail({
         ...mail,
-        subject: 'Reset Password',
-        template: 'Reset-Password-Template',
+        subject: 'Password Changed Successfully',
+        template: 'password-reset-complete',
       });
-      this.logger.log(`Reset password email sent successfully to ${mail.to}`);
-    } catch (sendResetPasswordEmailJobError) {
-      this.logger.error(`EmailQueueConsumer ~ sendResetPasswordEmailJobError: ${sendResetPasswordEmailJobError}`);
-    }
-  }
-
-  @Process('login-otp')
-  async sendLoginOtpEmailJob(job: Job<MailInterface>) {
-    try {
-      const {
-        data: { mail },
-      } = job;
-      await this.mailerService.sendMail({
-        ...mail,
-        subject: 'Login with OTP',
-        template: 'login-otp',
-      });
-      this.logger.log(`Login OTP email sent successfully to ${mail.to}`);
-    } catch (sendLoginOtpEmailJobError) {
-      this.logger.error(`EmailQueueConsumer ~ sendLoginOtpEmailJobError:   ${sendLoginOtpEmailJobError}`);
+      this.logger.log(`Password Changed Successfully email sent successfully to ${mail.to}`);
+    } catch (sendPasswordChangedEmailJobError) {
+      this.logger.error(`EmailQueueConsumer ~ sendPasswordChangedEmailJobError:   ${sendPasswordChangedEmailJobError}`);
     }
   }
 }

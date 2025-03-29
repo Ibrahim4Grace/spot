@@ -16,4 +16,7 @@ export class Otp extends AbstractBaseEntity {
 
   @Column()
   user_id: string;
+
+  @Column({ default: false })
+  verified: boolean;
 }

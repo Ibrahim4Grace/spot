@@ -15,10 +15,21 @@ import { Role } from '@modules/role/entities/role.entity';
 import { OtpModule } from '@modules/otp/otp.module';
 import { EmailModule } from '@modules/email/email.module';
 import appConfig from '@config/auth.config';
+import { PasswordService } from '../auth/password.service';
+import { AuthHelperService } from './auth-helper.service';
 
 @Module({
   controllers: [RegistrationController],
-  providers: [AuthenticationService, Repository, UserService, OtpService, TokenService, EmailService],
+  providers: [
+    AuthenticationService,
+    Repository,
+    UserService,
+    OtpService,
+    TokenService,
+    EmailService,
+    PasswordService,
+    AuthHelperService,
+  ],
   imports: [
     TypeOrmModule.forFeature([User, Otp, Role]),
     PassportModule,

@@ -11,7 +11,9 @@ import { TokenPayload } from 'google-auth-library';
 import { OtpDto } from '@modules/otp/dto/otp.dto';
 import { DataSource, EntityManager } from 'typeorm';
 import { TokenService } from '../token/token.service';
+import { PasswordService } from './password.service';
 import { Logger } from '@nestjs/common';
+import { AuthHelperService } from './auth-helper.service';
 import {
   RequestSigninTokenDto,
   LoginResponseDto,
@@ -26,6 +28,9 @@ import {
   LoginErrorResponseDto,
   UpdateUserPasswordResponseDTO,
 } from './dto/auth-response.dto';
+import { User } from '@modules/user/entities/user.entity';
+
+const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
 
 @Injectable()
 export default class AuthenticationService {
@@ -36,6 +41,8 @@ export default class AuthenticationService {
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource,
     private readonly tokenService: TokenService,
+    private passwordService: PasswordService,
+    private readonly authHelperService: AuthHelperService,
   ) {}
 
   async createNewUser(createUserDto: CreateUserDTO): Promise<CreateUserResponse> {
@@ -93,17 +100,7 @@ export default class AuthenticationService {
   }
 
   async verifyToken(authorization: string, verifyOtp: { otp: string }) {
-    if (!authorization || !authorization.startsWith('Bearer ')) {
-      throw new CustomHttpException('Invalid or missing Authorization header', HttpStatus.UNAUTHORIZED);
-    }
-    const token = authorization.split(' ')[1];
-    if (!token) {
-      throw new CustomHttpException('Token not provided in Authorization header', HttpStatus.UNAUTHORIZED);
-    }
-
-    const decodedToken = await this.tokenService.verifyEmailToken(token);
-    const user = await this.userService.getUserRecord({ identifier: decodedToken.userId, identifierType: 'id' });
-    if (!user) throw new CustomHttpException(SYS_MSG.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    const user = await this.authHelperService.validateBearerToken(authorization);
 
     const isValidOtp = await this.otpService.verifyOtp(user.id, verifyOtp.otp);
     if (!isValidOtp) throw new CustomHttpException(SYS_MSG.INVALID_OTP, HttpStatus.UNAUTHORIZED);
@@ -119,86 +116,26 @@ export default class AuthenticationService {
       user_type: user.user_type,
     };
 
+    await this.emailService.sendUserConfirmationMail(user.email, user.first_name, timestamp);
+    this.logger.log(`Successfully sent welcome email to ${user.email}`);
+
     return {
       message: SYS_MSG.EMAIL_VERIFIED_SUCCESSFULLY,
       data: responsePayload,
     };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string; token: string }> {
-    const user = await this.userService.getUserRecord({ identifier: dto.email, identifierType: 'email' });
-    if (!user) {
-      throw new CustomHttpException(SYS_MSG.USER_ACCOUNT_DOES_NOT_EXIST, HttpStatus.BAD_REQUEST);
-    }
-
-    const otpResult = await this.otpService.createOtp(user.id);
-    if (!otpResult) throw new CustomHttpException('Failed to generate OTP', HttpStatus.INTERNAL_SERVER_ERROR);
-
-    const preliminaryToken = this.tokenService.createEmailVerificationToken({
-      userId: user.id,
-      role: user.user_type,
-    });
-
-    await this.emailService.sendForgotPasswordMail(user.email, otpResult.plainOtp, user.first_name);
-    this.logger.log(`Successfully sent forgot password OTP to ${user.email} with OTP: ${otpResult.plainOtp}`);
-    return {
-      message: SYS_MSG.EMAIL_SENT,
-      token: preliminaryToken,
-    };
-  }
-
-  async updateForgotPassword(updatePasswordDto: UpdatePasswordDto) {
-    const { email, newPassword, otp } = updatePasswordDto;
-
-    const exists = await this.userService.getUserRecord({ identifier: email, identifierType: 'email' });
-    if (!exists) throw new CustomHttpException(SYS_MSG.USER_ACCOUNT_DOES_NOT_EXIST, HttpStatus.NOT_FOUND);
-
-    const user = await this.otpService.retrieveUserAndOtp(exists.id, otp);
-  }
-
-  async changePassword(user_id: string, oldPassword: string, newPassword: string) {
-    const user = await this.userService.getUserRecord({
-      identifier: user_id,
-      identifierType: 'id',
-    });
-
-    if (!user) {
-      throw new CustomHttpException(SYS_MSG.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
-    }
-
-    const isPasswordValid = bcrypt.compareSync(oldPassword, user.password);
-    if (!isPasswordValid) {
-      throw new CustomHttpException(SYS_MSG.INVALID_PASSWORD, HttpStatus.BAD_REQUEST);
-    }
-
-    await this.userService.updateUserRecord({
-      updatePayload: { password: newPassword },
-      identifierOptions: {
-        identifierType: 'id',
-        identifier: user.id,
-      },
-    });
-
-    return {
-      message: SYS_MSG.PASSWORD_UPDATED,
-    };
-  }
-
   async loginUser(loginDto: LoginDto): Promise<LoginResponseDto> {
     const { email, password } = loginDto;
-    console.log('Login request password:', loginDto.password);
     const user = await this.userService.getUserRecord({
       identifier: email,
       identifierType: 'email',
     });
-    console.log('User found:', user);
     if (!user) {
       throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
     }
 
-    console.log('Login request password:', password);
-    const isMatch = await bcrypt.compare(loginDto.password, user.password);
-    console.log('Password match:', isMatch);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       throw new CustomHttpException(SYS_MSG.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
     }
@@ -223,6 +160,114 @@ export default class AuthenticationService {
 
     return { message: SYS_MSG.LOGIN_SUCCESSFUL, ...responsePayload };
   }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string; token: string }> {
+    const user = await this.userService.getUserRecord({ identifier: dto.email, identifierType: 'email' });
+    if (!user) {
+      throw new CustomHttpException(SYS_MSG.USER_ACCOUNT_DOES_NOT_EXIST, HttpStatus.BAD_REQUEST);
+    }
+
+    // Delete all existing OTPs for this user first
+    await this.otpService.deleteOtp(user.id);
+
+    const otpResult = await this.otpService.createOtp(user.id);
+    if (!otpResult) throw new CustomHttpException('Failed to generate OTP', HttpStatus.INTERNAL_SERVER_ERROR);
+
+    const preliminaryToken = this.tokenService.createEmailVerificationToken({
+      userId: user.id,
+      role: user.user_type,
+    });
+
+    await this.emailService.sendForgotPasswordMail(user.email, user.first_name, otpResult.plainOtp);
+    this.logger.log(`Successfully sent forgot password OTP to ${user.email} with OTP: ${otpResult.plainOtp}`);
+    return {
+      message: SYS_MSG.EMAIL_SENT,
+      token: preliminaryToken,
+    };
+  }
+
+  async verifyForgetPasswordOtp(authorization: string, verifyOtp: { otp: string }) {
+    const user = await this.authHelperService.validateBearerToken(authorization);
+
+    const isValidOtp = await this.otpService.verifyOtp(user.id, verifyOtp.otp);
+    if (!isValidOtp) throw new CustomHttpException(SYS_MSG.INVALID_OTP, HttpStatus.UNAUTHORIZED);
+
+    const responsePayload = {
+      id: user.id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      user_type: user.user_type,
+    };
+
+    return {
+      message: SYS_MSG.OTP_VERIFIED_SUCCESSFULLY,
+      data: responsePayload,
+    };
+  }
+
+  async updateForgotPassword(authorization: string, updatePasswordDto: UpdatePasswordDto) {
+    const user = await this.authHelperService.validateBearerToken(authorization);
+
+    const otpVerified = await this.otpService.isOtpVerified(user.id);
+    if (!otpVerified) {
+      throw new CustomHttpException(SYS_MSG.OTP_VERIFIED, HttpStatus.UNAUTHORIZED);
+    }
+
+    const { newPassword } = updatePasswordDto;
+    const isSamePassword = await this.passwordService.comparePassword(newPassword, user.password);
+    if (isSamePassword) {
+      throw new CustomHttpException(SYS_MSG.DUPLICATE_PASSWORD, HttpStatus.BAD_REQUEST);
+    }
+
+    // Update the password
+    await this.userService.updateUserRecord({
+      updatePayload: {
+        password: await this.passwordService.hashPassword(newPassword),
+      },
+      identifierOptions: {
+        identifierType: 'id',
+        identifier: user.id,
+      },
+    });
+
+    await this.otpService.deleteOtp(user.id);
+
+    await this.emailService.sendPasswordChangedMail(user.email, user.first_name, timestamp);
+    this.logger.log(`Successfully sent password changed confirmation to ${user.email}`);
+
+    return {
+      message: SYS_MSG.PASSWORD_UPDATED,
+    };
+  }
+
+  // async changePassword(user_id: string, oldPassword: string, newPassword: string) {
+  //   const user = await this.userService.getUserRecord({
+  //     identifier: user_id,
+  //     identifierType: 'id',
+  //   });
+
+  //   if (!user) {
+  //     throw new CustomHttpException(SYS_MSG.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+  //   }
+
+  //   const isPasswordValid = bcrypt.compareSync(oldPassword, user.password);
+  //   if (!isPasswordValid) {
+  //     throw new CustomHttpException(SYS_MSG.INVALID_PASSWORD, HttpStatus.BAD_REQUEST);
+  //   }
+
+  //   await this.userService.updateUserRecord({
+  //     updatePayload: { password: newPassword },
+  //     identifierOptions: {
+  //       identifierType: 'id',
+  //       identifier: user.id,
+  //     },
+  //   });
+  //   await this.otpService.deleteOtp(user.id);
+  //   return {
+  //     message: SYS_MSG.PASSWORD_UPDATED,
+  //   };
+  // }
 
   // async googleAuth(googleAuthPayload: GoogleAuthPayload) {
   //   const idToken = googleAuthPayload.id_token;

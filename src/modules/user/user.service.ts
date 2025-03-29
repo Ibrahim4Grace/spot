@@ -5,6 +5,7 @@ import { pick } from '@shared/helpers/pick';
 import * as SYS_MSG from '@shared/constants/SystemMessages';
 import { Readable } from 'stream';
 import * as xlsx from 'xlsx';
+import * as bcrypt from 'bcryptjs';
 import { Response } from 'express';
 import { CustomHttpException } from '@shared/helpers/custom-http-filter';
 import {
@@ -31,23 +32,37 @@ import {
   NotFoundException,
   StreamableFile,
 } from '@nestjs/common';
+import { PasswordService } from '../auth/password.service';
 
 @Injectable()
 export default class UserService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private passwordService: PasswordService,
   ) {}
 
   async createUser(createUserPayload: CreateNewUserOptions, manager?: EntityManager): Promise<User> {
     const repo = manager ? manager.getRepository(User) : this.userRepository;
-    const newUser = new User();
-    console.log('Raw createUserPayload:', createUserPayload);
-    Object.assign(newUser, createUserPayload);
-    const savedUser = await repo.save<User>(newUser);
-    console.log('Saved user:', savedUser);
-    return savedUser;
+    const hashedPassword = await this.passwordService.hashPassword(createUserPayload.password);
+    const newUser = repo.create({ ...createUserPayload, password: hashedPassword });
+    return repo.save(newUser);
   }
+
+  async updatePassword(userId: string, newPassword: string): Promise<void> {
+    const hashedPassword = await this.passwordService.hashPassword(newPassword);
+    await this.userRepository.update(userId, { password: hashedPassword });
+  }
+
+  // async createUser(createUserPayload: CreateNewUserOptions, manager?: EntityManager): Promise<User> {
+  //   const repo = manager ? manager.getRepository(User) : this.userRepository;
+  //   const newUser = new User();
+  //   console.log('Raw createUserPayload:', createUserPayload);
+  //   Object.assign(newUser, createUserPayload);
+  //   const savedUser = await repo.save<User>(newUser);
+  //   console.log('Saved user:', savedUser);
+  //   return savedUser;
+  // }
 
   async updateUserRecord(userUpdateOptions: UpdateUserRecordOption) {
     const { updatePayload, identifierOptions } = userUpdateOptions;

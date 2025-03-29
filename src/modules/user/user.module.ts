@@ -5,10 +5,10 @@ import UserService from './user.service';
 import { UserController } from './user.controller';
 import { Role } from '@modules/role/entities/role.entity';
 import { User } from './entities/user.entity';
-
+import { PasswordService } from '../auth/password.service';
 @Module({
   controllers: [UserController],
-  providers: [UserService, Repository],
+  providers: [UserService, Repository, PasswordService],
   imports: [TypeOrmModule.forFeature([User, Role])],
   exports: [UserService],
 })

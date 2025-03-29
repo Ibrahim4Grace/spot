@@ -29,41 +29,42 @@ export class EmailService {
     console.log(`Queued OTP email job with ID: ${jobId} for ${email}`);
   }
 
-  async sendForgotPasswordMail(email: string, name: string, otp: string) {
-    const mailPayload: MailInterface = {
-      to: email,
-      context: {
-        name,
-        otp,
-        email,
-      },
-    };
-
-    await this.mailerService.sendMail({ variant: 'reset-password', mail: mailPayload });
-  }
-
-  async sendUserConfirmationMail(email: string, name: string, token: string) {
+  async sendUserConfirmationMail(email: string, name: string, timestamp: string) {
     const mailPayload: MailInterface = {
       to: email,
       context: {
         name,
         email,
+        timestamp,
       },
     };
 
     await this.mailerService.sendMail({ variant: 'welcome', mail: mailPayload });
   }
 
-  async sendLoginOtp(email: string, token: string) {
+  async sendForgotPasswordMail(email: string, name: string, otp: string) {
     const mailPayload: MailInterface = {
       to: email,
       context: {
-        email,
-        otp: token,
+        name,
+        otp,
       },
     };
 
-    await this.mailerService.sendMail({ variant: 'login-otp', mail: mailPayload });
+    await this.mailerService.sendMail({ variant: 'forgot-otp', mail: mailPayload });
+  }
+
+  async sendPasswordChangedMail(email: string, name: string, timestamp: string) {
+    const mailPayload: MailInterface = {
+      to: email,
+      context: {
+        name,
+        email,
+        timestamp,
+      },
+    };
+
+    await this.mailerService.sendMail({ variant: 'reset-successful', mail: mailPayload });
   }
 
   async createTemplate(templateInfo: createTemplateDto) {
@@ -74,7 +75,7 @@ export class EmailService {
         (message) =>
           !(
             (message.message.includes('Trailing slash on void elements has no effect') && message.type === 'info') ||
-            (message.message.includes('Consider adding a “lang” attribute') && message.subType === 'warning')
+            (message.message.includes('Consider adding a "lang" attribute') && message.subType === 'warning')
           ),
       );
 
@@ -91,11 +92,7 @@ export class EmailService {
       }
 
       if (response.status_code === HttpStatus.CREATED) {
-        await createFile(
-          './src/modules/email/hng-templates',
-          `${templateInfo.templateName}.hbs`,
-          templateInfo.template,
-        );
+        await createFile('./src/modules/email/templates', `${templateInfo.templateName}.hbs`, templateInfo.template);
       }
 
       return response;
@@ -116,7 +113,7 @@ export class EmailService {
       (message) =>
         !(
           (message.message.includes('Trailing slash on void elements has no effect') && message.type === 'info') ||
-          (message.message.includes('Consider adding a “lang” attribute') && message.subType === 'warning')
+          (message.message.includes('Consider adding a "lang" attribute') && message.subType === 'warning')
         ),
     );
 
@@ -150,7 +147,7 @@ export class EmailService {
 
   async getTemplate(templateInfo: getTemplateDto) {
     try {
-      const template = await getFile(`./src/modules/email/hng-templates/${templateInfo.templateName}.hbs`, 'utf-8');
+      const template = await getFile(`./src/modules/email/templates/${templateInfo.templateName}.hbs`, 'utf-8');
 
       return {
         status_code: HttpStatus.OK,
@@ -167,7 +164,7 @@ export class EmailService {
 
   async deleteTemplate(templateInfo: getTemplateDto) {
     try {
-      await deleteFile(`./src/modules/email/hng-templates/${templateInfo.templateName}.hbs`);
+      await deleteFile(`./src/modules/email/templates/${templateInfo.templateName}.hbs`);
       return {
         status_code: HttpStatus.OK,
         message: 'Template deleted successfully',
@@ -182,7 +179,7 @@ export class EmailService {
 
   async getAllTemplates() {
     try {
-      const templatesDirectory = './src/modules/email/hng-templates';
+      const templatesDirectory = './src/modules/email/templates';
       const files = await promisify(fs.readdir)(templatesDirectory);
 
       const templates = await Promise.all(

@@ -8,6 +8,10 @@ export const USER_ACCOUNT_EXIST = 'Account with the specified email exists';
 export const USER_ACCOUNT_DOES_NOT_EXIST = "Account with the specified email doesn't exist";
 export const UNAUTHENTICATED_MESSAGE = 'User is currently unauthorized, kindly authenticate to continue';
 export const EMAIL_VERIFIED_SUCCESSFULLY = 'Email verified successfully';
+export const OTP_VERIFIED_SUCCESSFULLY = 'Otp verified successfully';
+export const OTP_VERIFIED = 'OTP not verified for this operation';
+export const INVALID_HEADER = 'Invalid or missing Authorization header';
+export const TOKEN_NOT_PROVIDED = 'Token not provided in Authorization header';
 // export const TWO_FACTOR_VERIFIED_SUCCESSFULLY = '2FA verified and enabled';
 // export const ANALYTICS_FETCHED_SUCCESSFULLY = 'Admin Analytics fetched successfully';
 // export const DASHBOARD_FETCHED_SUCCESSFULLY = 'Admin Dashboard retrieved successfully';
@@ -41,15 +45,16 @@ export const FORBIDDEN_ACTION = 'You dont have the permission to perform this ac
 export const INVALID_OTP = 'Invalid or expired OTP';
 export const NOT_ORG_OWNER = 'You do not have permission to update this organisation';
 export const PASSWORD_UPDATED = 'Password updated successfully';
+export const DUPLICATE_PASSWORD = 'New password cannot be the same as old password';
 export const REQUEST_SUCCESSFUL = 'Request completed successfully';
 // export const PAYMENT_NOTFOUND = 'Payment plan not found';
 
 export const ROLE_NOT_FOUND = 'Role not found in the organization';
 
-export const JOB_NOT_FOUND = 'Job not found';
-export const JOB_DELETION_SUCCESSFUL = 'Job details deleted successfully';
-export const JOB_LISTING_RETRIEVAL_SUCCESSFUL = 'Jobs listing fetched successfully';
-export const JOB_CREATION_SUCCESSFUL = 'Job listing created successfully';
+// export const JOB_NOT_FOUND = 'Job not found';
+// export const JOB_DELETION_SUCCESSFUL = 'Job details deleted successfully';
+// export const JOB_LISTING_RETRIEVAL_SUCCESSFUL = 'Jobs listing fetched successfully';
+// export const JOB_CREATION_SUCCESSFUL = 'Job listing created successfully';
 export const NO_USER_ORGS = 'User has no organisations';
 
 export const EMAIL_TEMPLATES = {

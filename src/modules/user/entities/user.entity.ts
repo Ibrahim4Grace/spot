@@ -1,5 +1,4 @@
-import * as bcrypt from 'bcryptjs';
-import { AfterLoad, BeforeInsert, BeforeUpdate, Column, DeleteDateColumn, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { Column, Entity, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../entities/base.entity';
 import { Borrower } from '../../borrower/entities/borrower.entity';
 import { UserType } from '../../enums/enum';
@@ -29,9 +28,6 @@ export class User extends AbstractBaseEntity {
   @Column({ nullable: true })
   jobTitle: string;
 
-  @Column({ nullable: true })
-  attempts_left: number;
-
   @Column({ type: 'enum', enum: UserType, default: UserType.BORROWER })
   user_type: UserType;
 
@@ -41,33 +37,11 @@ export class User extends AbstractBaseEntity {
   @Column({ default: false })
   is_active: boolean;
 
+  @Column({ default: 3 })
+  attempts_left: number;
+
   @OneToOne(() => Borrower, (borrower) => borrower.user)
   borrower: Borrower;
-
-  // @BeforeInsert()
-  // @BeforeUpdate()
-  // async hashPassword() {
-  //   this.password = await bcrypt.hash(this.password, 10);
-  // }
-  private previousPassword: string; // To track password changes
-
-  @BeforeInsert()
-  async hashPasswordBeforeInsert() {
-    this.password = await bcrypt.hash(this.password, 10);
-  }
-
-  @BeforeUpdate()
-  async hashPasswordBeforeUpdate() {
-    // Only hash if password has changed
-    if (this.password !== this.previousPassword && !this.password.startsWith('$2b$')) {
-      this.password = await bcrypt.hash(this.password, 10);
-    }
-  }
-
-  @AfterLoad()
-  storePreviousPassword() {
-    this.previousPassword = this.password; // Store the current password after loading
-  }
 
   // @OneToMany(() => Notification, (notification) => notification.user)
   // notifications: Notification[];

@@ -68,9 +68,26 @@ export class OtpService {
         throw new NotFoundException('Invalid OTP');
       }
 
+      otpRecord.verified = true;
+      await this.otpRepository.save(otpRecord);
+
       return true;
     } catch (error) {
       console.log('OtpServiceError ~ verifyOtpError ~', error);
+      return false;
+    }
+  }
+
+  async isOtpVerified(userId: string): Promise<boolean> {
+    try {
+      const otpRecord = await this.otpRepository.findOne({ where: { user_id: userId } });
+
+      if (!otpRecord) return false;
+      if (otpRecord.expiry < new Date()) return false;
+
+      return otpRecord.verified;
+    } catch (error) {
+      console.log('OtpServiceError ~ isOtpVerifiedError ~', error);
       return false;
     }
   }

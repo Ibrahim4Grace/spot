@@ -293,14 +293,6 @@ export class UpdateUserPasswordResponseDTO {
 
 export class UpdatePasswordDto {
   @ApiProperty({
-    description: 'The email address of the user',
-    example: 'john@example.com',
-  })
-  @IsEmail()
-  @IsNotEmpty()
-  email: string;
-
-  @ApiProperty({
     description: 'The new password of the user',
   })
   @MinLength(8)
@@ -315,11 +307,18 @@ export class UpdatePasswordDto {
   newPassword: string;
 
   @ApiProperty({
-    description: 'The otp of the user',
+    description: 'Confirm the password of the user',
   })
+  @MinLength(8)
   @IsNotEmpty()
-  @IsString()
-  otp: string;
+  @IsStrongPassword(
+    {},
+    {
+      message:
+        'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+    },
+  )
+  confirmPassword?: string;
 }
 
 export class ForgotPasswordResponseDto {
