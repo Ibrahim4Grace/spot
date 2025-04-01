@@ -45,10 +45,8 @@ export class OtpService {
       const otpEntity = otpRepo.create({ token: hashedOTP, expiry, user, user_id: userId });
       await otpRepo.save(otpEntity);
 
-      // Return plain OTP for email sending
       return { otpEntity, plainOtp: otp };
     } catch (error) {
-      console.log('OtpServiceError ~ createOtpError ~', error);
       return null;
     }
   }
@@ -73,7 +71,6 @@ export class OtpService {
 
       return true;
     } catch (error) {
-      console.log('OtpServiceError ~ verifyOtpError ~', error);
       return false;
     }
   }
@@ -87,7 +84,6 @@ export class OtpService {
 
       return otpRecord.verified;
     } catch (error) {
-      console.log('OtpServiceError ~ isOtpVerifiedError ~', error);
       return false;
     }
   }

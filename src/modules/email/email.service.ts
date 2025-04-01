@@ -26,7 +26,6 @@ export class EmailService {
 
     // await this.mailerService.sendMail({ variant: 'register-otp', mail: mailPayload });
     const { jobId } = await this.mailerService.sendMail({ variant: 'register-otp', mail: mailPayload });
-    console.log(`Queued OTP email job with ID: ${jobId} for ${email}`);
   }
 
   async sendUserConfirmationMail(email: string, name: string, timestamp: string) {

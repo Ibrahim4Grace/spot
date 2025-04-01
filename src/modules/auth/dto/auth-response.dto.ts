@@ -1,9 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsStrongPassword, MinLength, IsEmail, IsOptional } from 'class-validator';
+import { UserType } from '@modules/user/interface/UserInterface';
+import { IsNotEmpty, IsString, IsStrongPassword, MinLength, IsEmail, IsEnum } from 'class-validator';
 
 // (Data Transfer Object)
 
 export class CreateUserDTO {
+  @ApiProperty({
+    description: 'The pronouns of the user',
+    example: 'Mr',
+  })
+  @IsNotEmpty()
+  @IsString()
+  pronouns: string;
+
   @ApiProperty({
     description: 'The first name of the user',
     example: 'John',
@@ -49,9 +58,16 @@ export class CreateUserDTO {
     description: 'The type of the user',
     example: 'borrower',
   })
+  @ApiProperty({
+    description: 'The type of the user',
+    example: 'admin, user, guarantor, investor, officer',
+    enum: UserType,
+  })
   @IsNotEmpty()
-  @IsString()
-  user_type?: string;
+  @IsEnum(UserType, {
+    message: 'Invalid user type. Valid values are: admin, user, guarantor, investor, officer',
+  })
+  role: UserType;
 }
 
 export class AuthResponseDto {
@@ -75,33 +91,6 @@ export class AuthResponseDto {
   data: object;
 }
 
-export class ChangePasswordDto {
-  @ApiProperty({
-    description: 'The current password of the user',
-    example: 'OldPassword123!',
-  })
-  @IsNotEmpty()
-  @IsString()
-  @MinLength(8)
-  oldPassword: string;
-
-  @ApiProperty({
-    description: 'The new password to set for the user. Must meet strong password criteria.',
-    example: 'NewPassword123!',
-  })
-  @IsNotEmpty()
-  @IsString()
-  @MinLength(8)
-  @IsStrongPassword(
-    {},
-    {
-      message:
-        'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
-    },
-  )
-  newPassword: string;
-}
-
 export class ForgotPasswordDto {
   @ApiProperty({
     description: 'The email address of the user',
@@ -110,68 +99,6 @@ export class ForgotPasswordDto {
   @IsEmail()
   @IsNotEmpty()
   email: string;
-}
-
-export class GoogleAuthPayloadDto {
-  @ApiProperty({
-    description: 'Access token provided by Google',
-    example: 'ya29.a0AfH6SMBb4JG...',
-  })
-  access_token: string;
-
-  @ApiProperty({
-    description: 'Expiration time in seconds for the access token',
-    example: 3599,
-  })
-  expires_in: number;
-
-  @ApiProperty({
-    description: 'Refresh token provided by Google',
-    example: '1//09gJ...',
-  })
-  refresh_token: string;
-
-  @ApiProperty({
-    description: 'Scope of the access token',
-    example: 'https://www.googleapis.com/auth/userinfo.profile',
-  })
-  scope: string;
-
-  @ApiProperty({
-    description: 'Type of the token provided',
-    example: 'Bearer',
-  })
-  token_type: string;
-
-  @ApiProperty({
-    description: 'ID token provided by Google',
-    example: 'eyJhbGciOiJSUzI1NiIs...',
-  })
-  id_token: string;
-
-  @ApiProperty({
-    description: 'Expiration time in epoch format',
-    example: 1629716100,
-  })
-  expires_at: number;
-
-  @ApiProperty({
-    description: 'Provider of the authentication service',
-    example: 'google',
-  })
-  provider: string;
-
-  @ApiProperty({
-    description: 'Type of the authentication',
-    example: 'oauth',
-  })
-  type: string;
-
-  @ApiProperty({
-    description: 'Provider account ID',
-    example: '1234567890',
-  })
-  providerAccountId: string;
 }
 
 export class LoginErrorResponseDto {
@@ -230,16 +157,31 @@ export class LoginResponseDto {
   message: string;
 
   @ApiProperty({
-    description: 'Data object containing user information and other relevant data',
-    type: DataDto,
-  })
-  data: DataDto;
-
-  @ApiProperty({
     description: 'Access token for authentication',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
   access_token: string;
+
+  @ApiProperty({
+    description: 'Refresh token for getting new access tokens',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  refresh_token: string;
+
+  @ApiProperty({
+    description: 'Additional data containing user object',
+    type: 'object',
+    additionalProperties: true,
+  })
+  data: {
+    user: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+      role: string;
+    };
+  };
 }
 
 export class LoginDto {
@@ -258,17 +200,6 @@ export class LoginDto {
   @IsNotEmpty()
   @IsString()
   readonly password: string;
-}
-
-export class RequestSigninTokenDto {
-  @ApiProperty({
-    description: 'The email address of the user requesting a sign-in token',
-    example: 'user@example.com',
-  })
-  @IsNotEmpty()
-  @IsString()
-  @IsEmail()
-  email: string;
 }
 
 export class UpdateUserPasswordResponseDTO {
@@ -326,10 +257,10 @@ export class ForgotPasswordResponseDto {
   message: string;
 }
 
-export class GenericAuthResponseDto {
+export class RefreshTokenDto {
   @ApiProperty({
-    description: 'Status message indicating the result of the operation',
-    example: 'Verification token sent to mail',
+    description: 'Refresh token to get new access token',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
-  message: string;
+  refresh_token: string;
 }

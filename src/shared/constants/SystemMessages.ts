@@ -17,7 +17,11 @@ export const TOKEN_NOT_PROVIDED = 'Token not provided in Authorization header';
 // export const DASHBOARD_FETCHED_SUCCESSFULLY = 'Admin Dashboard retrieved successfully';
 
 export const USER_NOT_FOUND = 'User not found!';
-
+export const PROFILE_FOUND = 'Successfully fetched profile';
+export const PROFILE_UPDATED = 'Successfully updated profile';
+export const PROFILE_DELETED = 'Successfully deleted profile';
+export const USER_PROFILE_NOT_FOUND = 'User profile not found';
+export const PROFILE_NOT_FOUND = 'Profile not found';
 export const INVALID_PASSWORD = 'Invalid password';
 
 export const BAD_REQUEST = 'Bad Request';
@@ -36,8 +40,8 @@ export const LOGIN_ERROR = 'An error occurred during login';
 export const EMAIL_SENT = 'Email sent successfully';
 
 export const VERIFY_OTP_SENT = 'OTP sent for verification, please check your email';
-export const WRONG_PARAMETERS =
-  'permission_list must be an object with keys from PermissionCategory and boolean values';
+// export const WRONG_PARAMETERS =
+//   'permission_list must be an object with keys from PermissionCategory and boolean values';
 // export const INVALID_ADMIN_SECRET = 'Invalid access secret';
 // export const ADMIN_CREATED = 'Admin Created Successfully';
 export const SERVER_ERROR = 'Sorry a server error occured';
@@ -47,6 +51,8 @@ export const NOT_ORG_OWNER = 'You do not have permission to update this organisa
 export const PASSWORD_UPDATED = 'Password updated successfully';
 export const DUPLICATE_PASSWORD = 'New password cannot be the same as old password';
 export const REQUEST_SUCCESSFUL = 'Request completed successfully';
+export const INVALID_REFRESH_TOKEN = 'Invalid refresh token';
+export const ADMIN_ROLE_NOT_FOUND = 'Admin Role does not exist';
 // export const PAYMENT_NOTFOUND = 'Payment plan not found';
 
 export const ROLE_NOT_FOUND = 'Role not found in the organization';
@@ -63,7 +69,7 @@ export const EMAIL_TEMPLATES = {
   TEMPLATE_NOT_FOUND: 'Template not found',
 };
 export const EXISTING_ROLE = 'A role with this name already exists in the organisation';
-
+export const ACCESS_DENIED = 'Access denied: Admin privileges required';
 export const ROLE_FETCHED_SUCCESSFULLY = 'Roles fetched successfully';
 export const ROLE_CREATED_SUCCESSFULLY = 'Role created successfully';
 

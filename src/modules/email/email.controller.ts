@@ -11,11 +11,11 @@ import {
   GetAllTemplatesResponseDto,
 } from './dto/email.dto';
 
-import { SuperAdminGuard } from '@guards/super-admin.guard';
+import { AdminGuard } from '@guards/admin.guard';
 
 @ApiTags('Emails')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(AdminGuard)
 @Controller('email')
 export class EmailController {
   constructor(private emailService: EmailService) {}
@@ -47,7 +47,7 @@ export class EmailController {
   @ApiOperation({ summary: 'Retrieve an email template' })
   @ApiResponse({ status: 200, description: 'Template retrieved successfully', type: GetTemplateResponseDto })
   @ApiResponse({ status: 404, description: 'Template not found', type: ErrorResponseDto })
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(AdminGuard)
   @Post('get-template')
   async getTemplate(@Body() body: getTemplateDto, @Res() res: Response): Promise<any> {
     const response = await this.emailService.getTemplate(body);

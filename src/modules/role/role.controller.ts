@@ -1,28 +1,33 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RoleService } from './role.service';
-import { SuperAdminGuard } from '@guards/super-admin.guard';
+import { AdminGuard } from '@guards/admin.guard';
 import {
   AttachPermissionsApiBody,
   AttachPermissionsDto,
-  UpdateOrganisationRoleDto,
+  CreateRoleDto,
+  UpdateRoleDto,
 } from './dto/create-role-with-permission.dto';
 
-@ApiTags('organisation Settings')
-@UseGuards(SuperAdminGuard)
+@ApiTags('role Settings')
+@UseGuards(AdminGuard)
 @ApiBearerAuth()
 @Controller('roles')
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
   @Post('')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new role in an organisation' })
+  @ApiOperation({ summary: 'Create a new role' })
   @ApiResponse({ status: 201, description: 'The role has been successfully created.' })
   @ApiResponse({ status: 400, description: 'Bad Request.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 409, description: 'Conflict - Role with this name already exists.' })
-  @UseGuards(SuperAdminGuard)
+  async createRole(@Body() createRoleDto: CreateRoleDto) {
+    return await this.roleService.createRole(createRoleDto);
+  }
+
+  @UseGuards(AdminGuard)
   @ApiBearerAuth()
   @Get('/:roleId')
   @ApiOperation({ summary: 'Fetch a single role ' })
@@ -36,7 +41,7 @@ export class RoleController {
     return await this.roleService.findSingleRole(roleId);
   }
 
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(AdminGuard)
   @ApiBearerAuth()
   @Patch('/:roleId')
   @ApiOperation({ summary: 'Update a role ' })
@@ -49,7 +54,7 @@ export class RoleController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({ status: 404, description: 'Role not found' })
   @ApiResponse({ status: 404, description: 'Organisation not found' })
-  async updateRole(updateRoleDto: UpdateOrganisationRoleDto, @Param('roleId') roleId: string) {
+  async updateRole(updateRoleDto: UpdateRoleDto, @Param('roleId') roleId: string) {
     const data = await this.roleService.updateRole({ id: roleId, payload: updateRoleDto });
 
     return {
@@ -58,7 +63,7 @@ export class RoleController {
     };
   }
 
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(AdminGuard)
   @ApiBearerAuth()
   @Post('permissions')
   @ApiOperation({ summary: 'Attach permissions to a role' })

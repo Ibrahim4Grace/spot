@@ -1,6 +1,5 @@
-export interface GoogleAuthPayload {
-  id_token: string;
-}
+import { UserType } from '@modules/user/interface/UserInterface';
+
 export interface CreateUserResponse {
   message: string;
   data: {
@@ -9,7 +8,7 @@ export interface CreateUserResponse {
       first_name: string;
       last_name: string;
       email: string;
-      user_type: string;
+      role: UserType;
     };
     token: string;
   };

@@ -13,6 +13,7 @@ import {
   CreateNewUserOptions,
   UpdateUserRecordOption,
   UserIdentifierOptionsType,
+  UserType,
 } from './interface/UserInterface';
 import {
   ReactivateAccountDto,
@@ -42,6 +43,62 @@ export default class UserService {
     private passwordService: PasswordService,
   ) {}
 
+  async updateUser(
+    userId: string,
+    updateUserDto: UpdateUserDto,
+    currentUser?: UserPayload,
+  ): Promise<UpdateUserResponseDTO> {
+    if (!userId) {
+      throw new BadRequestException({
+        error: 'Bad Request',
+        message: 'UserId is required',
+        status_code: HttpStatus.BAD_REQUEST,
+      });
+    }
+
+    const identifierOptions: UserIdentifierOptionsType = {
+      identifierType: 'id',
+      identifier: userId,
+    };
+    const user = await this.getUserRecord(identifierOptions);
+    if (!user) {
+      throw new NotFoundException({
+        error: 'Not Found',
+        message: 'User not found',
+        status_code: HttpStatus.NOT_FOUND,
+      });
+    }
+    // TODO: CHECK IF USER IS AN ADMIN
+    if (currentUser && currentUser.userId !== userId) {
+      throw new ForbiddenException({
+        error: 'Forbidden',
+        message: 'You are not authorized to update this user',
+        status_code: HttpStatus.FORBIDDEN,
+      });
+    }
+
+    try {
+      Object.assign(user, updateUserDto);
+      await this.userRepository.save(user);
+    } catch (error) {
+      throw new BadRequestException({
+        error: 'Bad Request',
+        message: 'Failed to update user',
+        status_code: HttpStatus.BAD_REQUEST,
+      });
+    }
+
+    return {
+      status: 'success',
+      message: 'User Updated Successfully',
+      user: {
+        id: user.id,
+        name: `${user.first_name} ${user.last_name}`,
+        phone: user.phone,
+      },
+    };
+  }
+
   async createUser(createUserPayload: CreateNewUserOptions, manager?: EntityManager): Promise<User> {
     const repo = manager ? manager.getRepository(User) : this.userRepository;
     const hashedPassword = await this.passwordService.hashPassword(createUserPayload.password);
@@ -53,16 +110,6 @@ export default class UserService {
     const hashedPassword = await this.passwordService.hashPassword(newPassword);
     await this.userRepository.update(userId, { password: hashedPassword });
   }
-
-  // async createUser(createUserPayload: CreateNewUserOptions, manager?: EntityManager): Promise<User> {
-  //   const repo = manager ? manager.getRepository(User) : this.userRepository;
-  //   const newUser = new User();
-  //   console.log('Raw createUserPayload:', createUserPayload);
-  //   Object.assign(newUser, createUserPayload);
-  //   const savedUser = await repo.save<User>(newUser);
-  //   console.log('Saved user:', savedUser);
-  //   return savedUser;
-  // }
 
   async updateUserRecord(userUpdateOptions: UpdateUserRecordOption) {
     const { updatePayload, identifierOptions } = userUpdateOptions;
@@ -100,19 +147,6 @@ export default class UserService {
     };
   }
 
-  public async createUserGoogle(userPayload) {
-    const newUser = new User();
-    const userData = {
-      email: userPayload.email,
-      name: `${userPayload.given_name} ${userPayload.family_name}`,
-      first_name: userPayload.given_name,
-      last_name: userPayload.family_name,
-    };
-    Object.assign(newUser, userData);
-    newUser.is_active = true;
-    return this.userRepository.save(newUser);
-  }
-
   private async getUserById(identifier: string) {
     const user: UserResponseDTO = await this.userRepository.findOne({
       where: { id: identifier },
@@ -120,24 +154,11 @@ export default class UserService {
     return user;
   }
 
-  async updateUser(
-    userId: string,
-    updateUserDto: UpdateUserDto,
-    currentUser?: UserPayload,
-  ): Promise<UpdateUserResponseDTO> {
-    if (!userId) {
-      throw new BadRequestException({
-        error: 'Bad Request',
-        message: 'UserId is required',
-        status_code: HttpStatus.BAD_REQUEST,
-      });
-    }
-
-    const identifierOptions: UserIdentifierOptionsType = {
-      identifierType: 'id',
-      identifier: userId,
-    };
-    const user = await this.getUserRecord(identifierOptions);
+  async updateUserStatus(userId: string, status: string) {
+    const keepColumns = ['id', 'created_at', 'updated_at', 'first_name', 'last_name', 'email', 'status'];
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
     if (!user) {
       throw new NotFoundException({
         error: 'Not Found',
@@ -145,34 +166,13 @@ export default class UserService {
         status_code: HttpStatus.NOT_FOUND,
       });
     }
-    // TODO: CHECK IF USER IS AN ADMIN
-    if (currentUser && currentUser.id !== userId) {
-      throw new ForbiddenException({
-        error: 'Forbidden',
-        message: 'You are not authorized to update this user',
-        status_code: HttpStatus.FORBIDDEN,
-      });
-    }
-
-    try {
-      Object.assign(user, updateUserDto);
-      await this.userRepository.save(user);
-    } catch (error) {
-      throw new BadRequestException({
-        error: 'Bad Request',
-        message: 'Failed to update user',
-        status_code: HttpStatus.BAD_REQUEST,
-      });
-    }
+    const updatedUser = Object.assign(user, { status });
+    const result = await this.userRepository.save(updatedUser);
 
     return {
       status: 'success',
-      message: 'User Updated Successfully',
-      user: {
-        id: user.id,
-        name: `${user.first_name} ${user.last_name}`,
-        phone_number: user.phone_number,
-      },
+      status_code: HttpStatus.OK,
+      data: pick(result, keepColumns),
     };
   }
 
@@ -220,14 +220,9 @@ export default class UserService {
 
     const user = await this.getUserRecord(identifierOptions);
 
-    if (!user) {
-      throw new CustomHttpException('User not found', HttpStatus.NOT_FOUND);
-    }
+    if (!user) throw new CustomHttpException('User not found', HttpStatus.NOT_FOUND);
 
     user.is_active = true;
-    user.attempts_left = 5;
-    user.time_left = 30 * 60 * 1000;
-
     await this.userRepository.save(user);
 
     return {
@@ -236,7 +231,7 @@ export default class UserService {
       user: {
         id: user.id,
         name: `${user.first_name} ${user.last_name}`,
-        phone_number: user.phone_number,
+        phone: user.phone,
       },
     };
   }
@@ -261,6 +256,7 @@ export default class UserService {
       email: user.email,
       phone_number: user.phone,
       is_active: user.is_active,
+      role: user.role,
       created_at: user.created_at,
     }));
 
@@ -274,66 +270,7 @@ export default class UserService {
     };
   }
 
-  async updateUserStatus(userId: string, status: string) {
-    const keepColumns = ['id', 'created_at', 'updated_at', 'first_name', 'last_name', 'email', 'status'];
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-    if (!user) {
-      throw new NotFoundException({
-        error: 'Not Found',
-        message: 'User not found',
-        status_code: HttpStatus.NOT_FOUND,
-      });
-    }
-    const updatedUser = Object.assign(user, { status });
-    const result = await this.userRepository.save(updatedUser);
-
-    return {
-      status: 'success',
-      status_code: HttpStatus.OK,
-      data: pick(result, keepColumns),
-    };
-  }
-
-  async getUserStats(status?: string): Promise<GetUserStatsResponseDto> {
-    const filters = {};
-
-    if (status) {
-      if (status === 'active') {
-        filters['is_active'] = true;
-      } else if (status === 'deleted') {
-        filters['is_active'] = false;
-      } else {
-        throw new BadRequestException({
-          error: 'Bad Request',
-          message: SYS_MSG.BAD_REQUEST,
-          status_code: HttpStatus.BAD_REQUEST,
-        });
-      }
-    }
-
-    const totalUsers = await this.userRepository.count();
-
-    const activeUsers = status
-      ? await this.userRepository.count({ where: { ...filters, is_active: true } })
-      : await this.userRepository.count({ where: { is_active: true } });
-
-    const deletedUsers = status
-      ? await this.userRepository.count({ where: { ...filters, is_active: false } })
-      : await this.userRepository.count({ where: { is_active: false } });
-
-    return {
-      status: 'success',
-      status_code: 200,
-      message: SYS_MSG.REQUEST_SUCCESSFUL,
-      data: {
-        total_users: totalUsers,
-        active_users: activeUsers,
-        deleted_users: deletedUsers,
-      },
-    };
-  }
+ 
 
   async exportUserDataAsJsonOrExcelFile(format: FileFormat, userId: string, res: Response) {
     const stream = new Readable();

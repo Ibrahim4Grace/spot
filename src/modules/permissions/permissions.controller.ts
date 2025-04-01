@@ -1,13 +1,13 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UpdatePermissionDto, CreatePermissionDto } from './dto/create-permission.dto';
-import { OrganisationPermissionsService } from './permissions.service';
+import { PermissionsService } from './permissions.service';
 
 @ApiBearerAuth()
 @ApiTags('Permissions')
 @Controller('permissions')
-export class OrganisationPermissionsController {
-  constructor(private readonly permissionService: OrganisationPermissionsService) {}
+export class PermissionsController {
+  constructor(private readonly permissionService: PermissionsService) {}
 
   @ApiOperation({ summary: 'Create Permission' })
   @ApiResponse({
@@ -15,7 +15,6 @@ export class OrganisationPermissionsController {
     description: 'Create a new existing permission',
     type: CreatePermissionDto,
   })
-  // @UseGuards(OwnershipGuard)
   @Post('')
   async createPermission(@Body() createPermissionDto: CreatePermissionDto) {
     return await this.permissionService.createPermission(createPermissionDto.title);
@@ -35,7 +34,7 @@ export class OrganisationPermissionsController {
   @ApiOperation({ summary: 'Fetch all Permission' })
   @Get('')
   async getAllPermissions() {
-    return await this.permissionService.getAllPermissions();
+    return await this.permissionService.getPermissions();
   }
 
   @ApiOperation({ summary: 'Fetch a single Permission' })

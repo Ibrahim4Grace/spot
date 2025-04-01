@@ -3,6 +3,8 @@ import { Collateral } from '../../collateral/entities/collateral.entity';
 import { AbstractBaseEntity } from '../../../entities/base.entity';
 import { Claim } from '../../claim/entities/claim.entity';
 import { Borrower } from '../../borrower/entities/borrower.entity';
+import { User } from '../../user/entities/user.entity';
+import { Investment } from '@modules/investment/entities/investment.entity';
 
 @Entity('guarantees')
 export class Guarantee extends AbstractBaseEntity {
@@ -169,6 +171,12 @@ export class Guarantee extends AbstractBaseEntity {
   @Column({ type: 'date', nullable: true })
   date_signed_off_formatted_m: Date; // "Date Signed Off formatted (M)"
 
+  @Column({ nullable: true })
+  is_exposed: boolean; // New field for marketplace exposure
+
+  @ManyToOne(() => User, (user) => user.guaranteed_loans, { nullable: true })
+  guarantor: User; // Link to the guarantor who committed
+
   @OneToMany(() => Collateral, (collateral) => collateral.guarantee)
   collaterals: Collateral[];
 
@@ -177,4 +185,7 @@ export class Guarantee extends AbstractBaseEntity {
 
   @ManyToOne(() => Borrower, (borrower) => borrower.guarantees)
   borrower: Borrower;
+
+  @OneToMany(() => Investment, (investment) => investment.guarantee)
+  investments: Investment[]; // Added to track investments
 }

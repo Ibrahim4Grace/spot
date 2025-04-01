@@ -1,12 +1,19 @@
-import { Column, Entity, OneToOne } from 'typeorm';
+import { Column, Entity, OneToOne, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { AbstractBaseEntity } from '../../../entities/base.entity';
 import { Borrower } from '../../borrower/entities/borrower.entity';
-import { UserType } from '../../enums/enum';
+import { UserType } from '../interface/UserInterface';
+import { Role } from '../../role/entities/role.entity';
+import { Guarantee } from '@modules/guarantee/entities/guarantee.entity';
+import { Investment } from '@modules/investment/entities/investment.entity';
+import { CapitalRequest } from '@modules/capital-request/entities/capital-request.entity';
 // import { NotificationSettings } from '../../../modules/notification-settings/entities/notification-setting.entity';
 // import { Notification } from '../../../modules/notifications/entities/notifications.entity';
 
 @Entity({ name: 'users' })
 export class User extends AbstractBaseEntity {
+  @Column({ nullable: true })
+  pronouns?: string;
+
   @Column({ nullable: false })
   first_name: string;
 
@@ -28,20 +35,33 @@ export class User extends AbstractBaseEntity {
   @Column({ nullable: true })
   jobTitle: string;
 
-  @Column({ type: 'enum', enum: UserType, default: UserType.BORROWER })
-  user_type: UserType;
-
   @Column({ default: false })
   emailVerified: boolean;
 
   @Column({ default: false })
   is_active: boolean;
 
-  @Column({ default: 3 })
-  attempts_left: number;
+  @Column({ nullable: true, type: 'jsonb' })
+  permissions?: object;
 
-  @OneToOne(() => Borrower, (borrower) => borrower.user)
+  @Column({ type: 'enum', enum: UserType, default: UserType.USER })
+  role: UserType; // New field to specify role
+
+  @Column({ nullable: true })
+  verification_level: number; // 0 (Pending), 1, 2, 3 (Verified) for guarantors
+
+  @OneToOne(() => Borrower, (borrower) => borrower.user, { nullable: true })
+  @JoinColumn({ name: 'borrower_id' })
   borrower: Borrower;
+
+  @OneToMany(() => Guarantee, (guarantee) => guarantee.guarantor, { nullable: true }) // For guarantors
+  guaranteed_loans: Guarantee[];
+
+  @OneToMany(() => Investment, (investment) => investment.investor, { nullable: true }) // For investors
+  investments: Investment[];
+
+  @OneToMany(() => CapitalRequest, (capitalRequest) => capitalRequest.approved_by, { nullable: true })
+  approved_requests: CapitalRequest[]; // Added to track approvals
 
   // @OneToMany(() => Notification, (notification) => notification.user)
   // notifications: Notification[];

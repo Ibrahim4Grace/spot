@@ -20,7 +20,10 @@ import { EmailModule } from '@modules/email/email.module';
 import { UserModule } from '@modules/user/user.module';
 import { RoleModule } from '@modules/role/role.module';
 import { TokenModule } from '@modules/token/token.module';
+import { JwtModule } from '@nestjs/jwt';
 import { parse } from 'url';
+import { CapitalRequestModule } from '@modules/capital-request/capital-request.module';
+import { InvestmentModule } from '@modules/investment/investment.module';
 
 @Module({
   providers: [
@@ -54,16 +57,15 @@ import { parse } from 'url';
       }),
       dataSourceFactory: async () => dataSource,
     }),
-    BorrowerModule,
-    ClaimModule,
-    GuaranteeModule,
-    CollateralModule,
-    AuthModule,
-    TokenModule,
-    UserModule,
-    OtpModule,
-    EmailModule,
-    RoleModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_AUTH_SECRET'),
+        signOptions: { expiresIn: '1d' },
+      }),
+      inject: [ConfigService],
+    }),
+
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -87,7 +89,6 @@ import { parse } from 'url';
       }),
       inject: [ConfigService],
     }),
-
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -116,7 +117,18 @@ import { parse } from 'url';
       },
       inject: [ConfigService],
     }),
+    BorrowerModule,
+    ClaimModule,
+    GuaranteeModule,
+    CollateralModule,
+    AuthModule,
     TokenModule,
+    UserModule,
+    OtpModule,
+    EmailModule,
+    RoleModule,
+    InvestmentModule,
+    CapitalRequestModule,
   ],
 })
 export class AppModule {}

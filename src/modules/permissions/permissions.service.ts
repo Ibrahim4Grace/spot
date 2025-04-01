@@ -7,23 +7,27 @@ import { CustomHttpException } from '@shared/helpers/custom-http-filter';
 import { RESOURCE_NOT_FOUND } from '@shared/constants/SystemMessages';
 
 @Injectable()
-export class OrganisationPermissionsService {
+export class PermissionsService {
   constructor(
     @InjectRepository(Permissions)
     private readonly permissionRepository: Repository<Permissions>,
   ) {}
 
   public async createPermission(title: string): Promise<Permissions> {
+    const existingPermission = await this.permissionRepository.findOne({
+      where: { title },
+    });
+
+    if (existingPermission) {
+      throw new CustomHttpException('Permission already exists', HttpStatus.CONFLICT);
+    }
+
     const permission = new Permissions();
     permission.title = title;
     return await this.permissionRepository.save(permission);
   }
 
-  public async getPermissions(): Promise<Permissions[]> {
-    return await this.permissionRepository.find();
-  }
-
-  public async getAllPermissions() {
+  public async getPermissions() {
     const permissions = await this.getPermissions();
     return {
       status_code: HttpStatus.OK,
